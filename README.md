@@ -1,5 +1,5 @@
 # Simple Image Previewer
-Simple Image Previewer written in C, using [imlib2](https://docs.enlightenment.org/api/imlib2/html/) to handle images, and [Xlib](https://x.org/releases/current/doc/libX11/libX11/libX11.html) as GUI interface.
+Simple Image Previewer written in C, using [imlib2](https://docs.enlightenment.org/api/imlib2/html/) to handle images, and [Xlib](https://x.org/releases/current/doc/libX11/libX11/libX11.html) as GUI interface. Made for Linux systems running Xorg.
 
 <img src="screen1.png" alt="screen1" width="600"/>
 
@@ -16,5 +16,6 @@ Needs root privileges to make an executable in `/usr/local/bin`.
 ```
 sip [FILE]
 ```
+Quit by hitting `q`.
 
 ## MIT License
