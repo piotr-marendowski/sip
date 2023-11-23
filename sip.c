@@ -1,6 +1,7 @@
 /* Author: Piotr Marendowski */
 /* License: MIT */
 /* Usage: sip [FILE] */
+/* Version 1.1 */
 #include <Imlib2.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -24,6 +25,8 @@ void draw_image(Display *display, Window window, GC gc, Visual *visual, int dept
             Colormap colormap, char *filename);
 /* Set background color */
 void set_background(char *rgb, Display *display, Window window);
+/* Handle transparent images */
+int handle_transparency(Display *display, Drawable Source, Drawable Dest, Drawable Mask, GC gc, int depth, int x, int y, int Width, int Height, int DestX, int DestY);
 
 int main(int argc, char *argv[])
 {
@@ -194,6 +197,8 @@ void draw_image(Display *display, Window window, GC gc, Visual *visual, int dept
 {
     Imlib_Image image;
     Pixmap pixmap;
+    int x,y;
+    char *pixel;
 
     imlib_context_set_display(display);
     imlib_context_set_visual(visual);
@@ -214,8 +219,25 @@ void draw_image(Display *display, Window window, GC gc, Visual *visual, int dept
     imlib_context_set_drawable(pixmap);
     imlib_render_image_on_drawable_at_size(0, 0, imagewidth, imageheight);
 
+    // Loop through every pixel of the image
+    for (x = 0; x < imagewidth; x++) {
+        for (y = 0; y < imageheight; y++) {
+            // Get the pixel value
+            pixel = XGetPixel(image, x, y);
+
+            // Check if the pixel is an alpha pixel
+            if ((pixel & 0xff000000) != 0xff000000) {
+                // If the pixel is an alpha pixel, set its color to gray
+                XPutPixel(image, x, y, 0x808080);
+            }
+        }
+    }
+
+    handle_transparency(display, pixmap, window, window, gc, depth, 0, 0, imagewidth, imageheight,
+            xcenter - (imagewidth / 2), ycenter - (imageheight / 2));
+
     XCopyArea(display, pixmap, window, gc, 0, 0, imagewidth, imageheight,
-              xcenter - (imagewidth / 2), ycenter - (imageheight / 2));
+                xcenter - (imagewidth / 2), ycenter - (imageheight / 2));
 }
 
 void set_background(char *rgb, Display *display, Window window)
@@ -226,4 +248,39 @@ void set_background(char *rgb, Display *display, Window window)
     XAllocColor(display, colormap, &color);
 
     XSetWindowBackground(display, window, color.pixel);
+}
+
+/* from: https://stackoverflow.com/questions/68734747/drawing-a-graphic-with-a-transparent-color-using-xlib */
+/* it kind of handles transparency */
+int
+handle_transparency(Display *display, Drawable Source, Drawable Dest, Drawable Mask, GC gc, int depth, int x, int y, int Width, int Height, int DestX, int DestY)
+{
+    XGCValues gcv;
+    int func;
+    Pixmap Mask_;
+
+    // Clear effected pixels in Dest
+    XGetGCValues (display, gc, GCFunction, &gcv);
+    func = gcv.function;
+    gcv.function = GXandInverted;
+    XChangeGC (display, gc, GCFunction, &gcv);
+    XCopyArea (display, Mask, Dest, gc, x, y, Width, Height, DestX, DestY);
+    // Generate coloured Mask to OR into Dest
+    Mask_ = XCreatePixmap (display, Dest, Width, Height, depth);   // First make a copy of Mask
+    gcv.function = GXcopy;
+    XChangeGC (display, gc, GCFunction, &gcv);
+    XCopyArea (display, Mask, Mask_, gc, x, y, Width, Height, 0, 0);
+    gcv.function = GXand;   // Then colour it to match pixels in Source
+    XChangeGC (display, gc, GCFunction, &gcv);
+    XCopyArea (display, Source, Mask_, gc, x, y, Width, Height, 0, 0);
+    // Copy new coloured Mask into Dest
+    gcv.function = GXor;
+    XChangeGC (display, gc, GCFunction, &gcv);
+    XCopyArea (display, Mask_, Dest, gc, 0, 0, Width, Height, DestX, DestY);
+    // Restore gc & free new Mask
+    gcv.function = func;
+    XChangeGC (display, gc, GCFunction, &gcv);
+    XFreePixmap (display, Mask_);
+
+    return 0;
 }
